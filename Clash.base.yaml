@@ -1,0 +1,862 @@
+# Clash / mihomo profile — mirrors Shared.ini (the Surge config in this repo).
+#
+# Policy groups, their member order, and the rule order are kept identical to
+# Shared.ini so the two configs route the same way. The rule sets are the Clash
+# builds of the same dler-io lists, fetched as rule-providers rather than
+# vendored, so mihomo keeps them updated itself.
+#
+# Requires mihomo (Clash.Meta). Not compatible with the original Clash core:
+# it uses dialer-proxy, IP-ASN rules and modern provider fields.
+#
+# See below for complete config reference
+# https://github.com/MetaCubeX/mihomo/blob/Meta/docs/config.yaml
+
+mixed-port: 7890
+allow-lan: false
+bind-address: 127.0.0.1
+mode: rule
+log-level: info
+ipv6: true
+unified-delay: true
+tcp-concurrent: true
+find-process-mode: strict
+global-client-fingerprint: chrome
+
+# The GEOIP,CN rule needs a geo database. mihomo downloads one on first use if
+# it is missing, but never refreshes it unless told to. Pinned to the same
+# fastly mirror the rule sets come from.
+geox-url:
+  geoip: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"
+  geosite: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+  mmdb: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.metadb"
+geo-auto-update: true
+geo-update-interval: 24
+
+# Local only. Set a real secret and bind to 0.0.0.0 explicitly if you want a
+# dashboard from another machine — unlike the Surge profiles in this repo, this
+# does not expose the controller to the LAN by default.
+external-controller: 127.0.0.1:9090
+secret: "{{CLASH_SECRET}}"
+
+profile:
+  store-selected: true   # persists group choices, like Surge's saved selections
+  store-fake-ip: true
+
+sniffer:
+  enable: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+  skip-domain:
+    - "Mijia Cloud"
+    - "+.push.apple.com"
+
+dns:
+  enable: true
+  ipv6: true
+  listen: 0.0.0.0:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "*.direct"
+    - "+.msftconnecttest.com"
+    - "+.msftncsi.com"
+    - "localhost.ptlogin2.qq.com"
+    - "+.srv.nintendo.net"
+    - "+.stun.playstation.net"
+    - "+.xboxlive.com"
+    - "+.pool.ntp.org"
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  proxy-server-nameserver:
+    - https://dns.alidns.com/dns-query
+
+# Transparent proxying. Off by default because it needs elevated privileges.
+tun:
+  enable: false
+  stack: mixed
+  auto-route: true
+  auto-redirect: true
+  auto-detect-interface: true
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+
+proxies:
+{{#vps}}
+{{clash}}
+
+{{/vps}}
+{{#vps}}
+{{clashRelay}}
+
+{{/vps}}
+proxy-providers:
+{{#subscriptions}}
+{{clashProvider}}
+{{/subscriptions}}
+
+proxy-groups:
+  # include-other-group in Shared.ini expands a subscription's nodes into the
+  # group; use: is the mihomo equivalent, and can sit alongside proxies:.
+  - name: "Proxy"
+    type: select
+    proxies: ["Auto - UrlTest", {{vps.names}}]
+    use: {{subscriptions.use}}
+
+{{#subscriptions}}
+{{clashGroup}}
+{{/subscriptions}}
+
+  # The same nodes as the subscription groups, but with its own selection
+  # state, so changing the browsing node does not move the chains' entry hop.
+  - name: "{{relayGroup}}"
+    type: select
+    use: {{subscriptions.use}}
+
+  - name: "Auto - UrlTest"
+    type: url-test
+    use: {{subscriptions.use}}
+    url: http://cp.cloudflare.com/generate_204
+    interval: 3600
+    tolerance: 100
+    expected-status: 204   # a captive portal answering 200 is not a live node
+
+  - name: "AI Suite"
+    type: select
+    proxies: [{{vps.allNames}}, "DIRECT", "REJECT"]
+    use: {{subscriptions.use}}
+
+  - name: "Netflix"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Disney Plus"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "YouTube"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Max"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Spotify"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Asian TV"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Global TV"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "CN Mainland TV"
+    type: select
+    proxies: ["DIRECT", "Proxy"]
+
+  - name: "Apple TV"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Crypto"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Discord"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Google FCM"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Microsoft"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "PayPal"
+    type: select
+    proxies: ["DIRECT", "Proxy"]
+
+  - name: "Scholar"
+    type: select
+    proxies: ["DIRECT", "Proxy"]
+
+  - name: "Speedtest"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Steam"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "TikTok"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "Apple Push"
+    type: select
+    proxies: ["DIRECT", "Proxy"]
+
+  - name: "Apple Services"
+    type: select
+    proxies: ["DIRECT", "Proxy"]
+
+  - name: "Telegram"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+
+  - name: "miHoYo"
+    type: select
+    proxies: ["DIRECT", "Proxy"]
+
+  - name: "Special"
+    type: select
+    proxies: ["DIRECT", "Proxy"]
+
+  - name: "Domestic"
+    type: select
+    proxies: ["DIRECT", "Proxy"]
+
+  - name: "AdBlock"
+    type: select
+    proxies: ["REJECT", "DIRECT", "Proxy"]
+
+  - name: "Others"
+    type: select
+    proxies: ["Proxy", "DIRECT"]
+    use: {{subscriptions.use}}
+
+rule-providers:
+  LAN:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/LAN.yaml"
+    path: ./ruleset/LAN.yaml
+    interval: 86400
+    proxy: DIRECT
+  AdBlock:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/AdBlock.yaml"
+    path: ./ruleset/AdBlock.yaml
+    interval: 86400
+    proxy: DIRECT
+  Special:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Special.yaml"
+    path: ./ruleset/Special.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Netflix:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Netflix.yaml"
+    path: ./ruleset/Media_Netflix.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Disney_Plus:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Disney%20Plus.yaml"
+    path: ./ruleset/Media_Disney_Plus.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_YouTube:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/YouTube.yaml"
+    path: ./ruleset/Media_YouTube.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_YouTube_Music:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/YouTube%20Music.yaml"
+    path: ./ruleset/Media_YouTube_Music.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Max:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Max.yaml"
+    path: ./ruleset/Media_Max.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Spotify:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Spotify.yaml"
+    path: ./ruleset/Media_Spotify.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Abema_TV:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Abema%20TV.yaml"
+    path: ./ruleset/Media_Abema_TV.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Bahamut:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Bahamut.yaml"
+    path: ./ruleset/Media_Bahamut.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_DMM:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/DMM.yaml"
+    path: ./ruleset/Media_DMM.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Fox_Plus:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Fox%2B.yaml"
+    path: ./ruleset/Media_Fox_Plus.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Hulu_Japan:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Hulu%20Japan.yaml"
+    path: ./ruleset/Media_Hulu_Japan.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_IQ:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/IQ.yaml"
+    path: ./ruleset/Media_IQ.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Japonx:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Japonx.yaml"
+    path: ./ruleset/Media_Japonx.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_JOOX:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/JOOX.yaml"
+    path: ./ruleset/Media_JOOX.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_KKBOX:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/KKBOX.yaml"
+    path: ./ruleset/Media_KKBOX.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_KKTV:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/KKTV.yaml"
+    path: ./ruleset/Media_KKTV.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Line_TV:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Line%20TV.yaml"
+    path: ./ruleset/Media_Line_TV.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_MOO:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/MOO.yaml"
+    path: ./ruleset/Media_MOO.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_myTV_SUPER:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/myTV%20SUPER.yaml"
+    path: ./ruleset/Media_myTV_SUPER.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Niconico:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Niconico.yaml"
+    path: ./ruleset/Media_Niconico.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_ViuTV:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/ViuTV.yaml"
+    path: ./ruleset/Media_ViuTV.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_ABC:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/ABC.yaml"
+    path: ./ruleset/Media_ABC.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Amazon:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Amazon.yaml"
+    path: ./ruleset/Media_Amazon.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_BBC_iPlayer:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/BBC%20iPlayer.yaml"
+    path: ./ruleset/Media_BBC_iPlayer.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_DAZN:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/DAZN.yaml"
+    path: ./ruleset/Media_DAZN.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Discovery_Plus:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Discovery%20Plus.yaml"
+    path: ./ruleset/Media_Discovery_Plus.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_encoreTVB:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/encoreTVB.yaml"
+    path: ./ruleset/Media_encoreTVB.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_F1_TV:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/F1%20TV.yaml"
+    path: ./ruleset/Media_F1_TV.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Fox_Now:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Fox%20Now.yaml"
+    path: ./ruleset/Media_Fox_Now.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Hulu:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Hulu.yaml"
+    path: ./ruleset/Media_Hulu.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Pandora:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Pandora.yaml"
+    path: ./ruleset/Media_Pandora.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_PBS:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/PBS.yaml"
+    path: ./ruleset/Media_PBS.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Pornhub:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Pornhub.yaml"
+    path: ./ruleset/Media_Pornhub.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Soundcloud:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Soundcloud.yaml"
+    path: ./ruleset/Media_Soundcloud.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Bilibili:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Bilibili.yaml"
+    path: ./ruleset/Media_Bilibili.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_IQIYI:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/IQIYI.yaml"
+    path: ./ruleset/Media_IQIYI.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Letv:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Letv.yaml"
+    path: ./ruleset/Media_Letv.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Netease_Music:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Netease%20Music.yaml"
+    path: ./ruleset/Media_Netease_Music.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Tencent_Video:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Tencent%20Video.yaml"
+    path: ./ruleset/Media_Tencent_Video.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Youku:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Youku.yaml"
+    path: ./ruleset/Media_Youku.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_WeTV:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/WeTV.yaml"
+    path: ./ruleset/Media_WeTV.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Apple_Music:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Apple%20Music.yaml"
+    path: ./ruleset/Media_Apple_Music.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Apple_News:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Apple%20News.yaml"
+    path: ./ruleset/Media_Apple_News.yaml
+    interval: 86400
+    proxy: DIRECT
+  Media_Apple_TV:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Media/Apple%20TV.yaml"
+    path: ./ruleset/Media_Apple_TV.yaml
+    interval: 86400
+    proxy: DIRECT
+  Crypto:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Crypto.yaml"
+    path: ./ruleset/Crypto.yaml
+    interval: 86400
+    proxy: DIRECT
+  Discord:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Discord.yaml"
+    path: ./ruleset/Discord.yaml
+    interval: 86400
+    proxy: DIRECT
+  Google_FCM:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Google%20FCM.yaml"
+    path: ./ruleset/Google_FCM.yaml
+    interval: 86400
+    proxy: DIRECT
+  Microsoft:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Microsoft.yaml"
+    path: ./ruleset/Microsoft.yaml
+    interval: 86400
+    proxy: DIRECT
+  AI_Suite:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/AI%20Suite.yaml"
+    path: ./ruleset/AI_Suite.yaml
+    interval: 86400
+    proxy: DIRECT
+  PayPal:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/PayPal.yaml"
+    path: ./ruleset/PayPal.yaml
+    interval: 86400
+    proxy: DIRECT
+  Scholar:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Scholar.yaml"
+    path: ./ruleset/Scholar.yaml
+    interval: 86400
+    proxy: DIRECT
+  Speedtest:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Speedtest.yaml"
+    path: ./ruleset/Speedtest.yaml
+    interval: 86400
+    proxy: DIRECT
+  Steam:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Steam.yaml"
+    path: ./ruleset/Steam.yaml
+    interval: 86400
+    proxy: DIRECT
+  TikTok:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/TikTok.yaml"
+    path: ./ruleset/TikTok.yaml
+    interval: 86400
+    proxy: DIRECT
+  Apple_Push:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Apple%20Push.yaml"
+    path: ./ruleset/Apple_Push.yaml
+    interval: 86400
+    proxy: DIRECT
+  Apple:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Apple.yaml"
+    path: ./ruleset/Apple.yaml
+    interval: 86400
+    proxy: DIRECT
+  Telegram:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Telegram.yaml"
+    path: ./ruleset/Telegram.yaml
+    interval: 86400
+    proxy: DIRECT
+  miHoYo:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/miHoYo.yaml"
+    path: ./ruleset/miHoYo.yaml
+    interval: 86400
+    proxy: DIRECT
+  Proxy:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Proxy.yaml"
+    path: ./ruleset/Proxy.yaml
+    interval: 86400
+    proxy: DIRECT
+  Domestic:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Domestic.yaml"
+    path: ./ruleset/Domestic.yaml
+    interval: 86400
+    proxy: DIRECT
+  Domestic_IPs:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/dler-io/Rules@main/Clash/Provider/Domestic%20IPs.yaml"
+    path: ./ruleset/Domestic_IPs.yaml
+    interval: 86400
+    proxy: DIRECT
+  ASN_China:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://fastly.jsdelivr.net/gh/VirgilClyne/GetSomeFries@main/ruleset/ASN.China.yaml"
+    path: ./ruleset/ASN_China.yaml
+    interval: 86400
+    proxy: DIRECT
+
+rules:
+  - RULE-SET,LAN,DIRECT
+  - RULE-SET,AdBlock,AdBlock
+
+  - RULE-SET,Special,Special
+
+  - RULE-SET,Media_Netflix,Netflix
+
+  - RULE-SET,Media_Disney_Plus,Disney Plus
+
+  - RULE-SET,Media_YouTube,YouTube
+  - RULE-SET,Media_YouTube_Music,YouTube
+
+  - RULE-SET,Media_Max,Max
+
+  - RULE-SET,Media_Spotify,Spotify
+
+  - RULE-SET,Media_Abema_TV,Asian TV
+  - RULE-SET,Media_Bahamut,Asian TV
+  - RULE-SET,Media_DMM,Asian TV
+  - RULE-SET,Media_Fox_Plus,Asian TV
+  - RULE-SET,Media_Hulu_Japan,Asian TV
+  - RULE-SET,Media_IQ,Asian TV
+  - RULE-SET,Media_Japonx,Asian TV
+  - RULE-SET,Media_JOOX,Asian TV
+  - RULE-SET,Media_KKBOX,Asian TV
+  - RULE-SET,Media_KKTV,Asian TV
+  - RULE-SET,Media_Line_TV,Asian TV
+  - RULE-SET,Media_MOO,Asian TV
+  - RULE-SET,Media_myTV_SUPER,Asian TV
+  - RULE-SET,Media_Niconico,Asian TV
+  - RULE-SET,Media_ViuTV,Asian TV
+
+  - RULE-SET,Media_ABC,Global TV
+  - RULE-SET,Media_Amazon,Global TV
+  - RULE-SET,Media_BBC_iPlayer,Global TV
+  - RULE-SET,Media_DAZN,Global TV
+  - RULE-SET,Media_Discovery_Plus,Global TV
+  - RULE-SET,Media_encoreTVB,Global TV
+  - RULE-SET,Media_F1_TV,Global TV
+  - RULE-SET,Media_Fox_Now,Global TV
+  - RULE-SET,Media_Hulu,Global TV
+  - RULE-SET,Media_Pandora,Global TV
+  - RULE-SET,Media_PBS,Global TV
+  - RULE-SET,Media_Pornhub,Global TV
+  - RULE-SET,Media_Soundcloud,Global TV
+
+  - RULE-SET,Media_Bilibili,CN Mainland TV
+  - RULE-SET,Media_IQIYI,CN Mainland TV
+  - RULE-SET,Media_Letv,CN Mainland TV
+  - RULE-SET,Media_Netease_Music,CN Mainland TV
+  - RULE-SET,Media_Tencent_Video,CN Mainland TV
+  - RULE-SET,Media_Youku,CN Mainland TV
+  - RULE-SET,Media_WeTV,CN Mainland TV
+
+  - RULE-SET,Media_Apple_Music,Apple TV
+  - RULE-SET,Media_Apple_News,Apple TV
+  - RULE-SET,Media_Apple_TV,Apple TV
+
+  - RULE-SET,Crypto,Crypto
+
+  - RULE-SET,Discord,Discord
+
+  - RULE-SET,Google_FCM,Google FCM
+
+  - RULE-SET,Microsoft,Microsoft
+
+  - RULE-SET,AI_Suite,AI Suite
+
+  - RULE-SET,PayPal,PayPal
+
+  - RULE-SET,Scholar,Scholar
+
+  - RULE-SET,Speedtest,Speedtest
+
+  - RULE-SET,Steam,Steam
+
+  - RULE-SET,TikTok,TikTok
+
+  - RULE-SET,Apple_Push,Apple Push
+
+  - RULE-SET,Apple,Apple Services
+
+  - RULE-SET,Telegram,Telegram
+
+  - RULE-SET,miHoYo,miHoYo
+
+  - RULE-SET,Proxy,Proxy
+
+  - RULE-SET,Domestic,Domestic
+  - RULE-SET,Domestic_IPs,Domestic
+  - RULE-SET,ASN_China,Domestic
+
+  - GEOIP,CN,Domestic
+  - MATCH,Others

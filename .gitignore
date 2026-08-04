@@ -1,0 +1,8 @@
+# Private values, and everything generated from them. The tracked artifacts are
+# the *.base.* templates; run `npm run gen` to render the real profiles.
+conf-gen.json
+.conf/
+
+MITM.ini
+node_modules/
+.DS_Store

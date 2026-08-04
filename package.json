@@ -1,0 +1,13 @@
+{
+  "name": "surge-conf",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Surge profiles for macOS and iOS with vendored dler-io rule sets",
+  "scripts": {
+    "sync": "./scripts/sync-icloud.sh",
+    "sync:dry": "./scripts/sync-icloud.sh --dry-run --itemize-changes",
+    "gen": "node scripts/gen-conf.mjs",
+    "gen:check": "node scripts/gen-conf.mjs --check",
+    "link:surge": "./scripts/link-surge.sh"
+  }
+}

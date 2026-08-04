@@ -1,0 +1,127 @@
+{
+  "$comment": [
+    "Copy to conf-gen.json and put your real values in it, then run `pnpm gen`.",
+    "conf-gen.json is gitignored; this example is the tracked one.",
+    "",
+    "Every option the generator reads is shown below. Required fields are marked",
+    "in the $comment of each section; everything else may be omitted, and the",
+    "default is given. The first vps/subscription entry is minimal, the second",
+    "spells out every optional property.",
+    "",
+    "Any field you add to a vps or subscription entry is also readable from the",
+    "templates as {{fieldName}} inside the matching {{#vps}} / {{#subscriptions}}",
+    "loop, so you can carry extra data through without touching the generator."
+  ],
+
+  "$comment_output": "Where rendered profiles are written. --out overrides it. Default: .conf",
+  "outDir": ".conf",
+
+  "$comment_relay": [
+    "Chained variants are derived from every vps: a second policy named",
+    "<name><relaySuffix> whose transport comes from <relayGroup>, via",
+    "underlying-proxy in Surge and dialer-proxy in Clash.",
+    "Defaults: relayGroup \"Relay\", relaySuffix \" - Relay\"."
+  ],
+  "relayGroup": "Relay",
+  "relaySuffix": " - Relay",
+
+  "$comment_vps": [
+    "Required: name, type, server, port.",
+    "Optional: params, clashParams.",
+    "",
+    "type and params are passed through verbatim, so any protocol both engines",
+    "support works — snell, ss, trojan, vmess, hysteria2 and so on. params is",
+    "emitted as k=v on the Surge line and as YAML keys in the Clash block;",
+    "clashParams is merged over it for keys only Clash understands."
+  ],
+  "vps": [
+    {
+      "name": "My VPS 1",
+      "type": "snell",
+      "server": "198.51.100.10",
+      "port": 8964,
+      "params": { "psk": "YOUR_PSK_HERE", "version": 5, "reuse": true, "tfo": true }
+    },
+    {
+      "name": "My VPS 2",
+      "type": "ss",
+      "server": "198.51.100.11",
+      "port": 8388,
+      "params": { "encrypt-method": "aes-128-gcm", "password": "YOUR_PASSWORD_HERE" },
+      "clashParams": { "cipher": "aes-128-gcm", "udp": true }
+    }
+  ],
+
+  "$comment_subscriptions": [
+    "Required: name, surge, clash.",
+    "Optional: prefix, key, filter, interval, downloadVia, testUrl,",
+    "          surgeParams, clashOverride.",
+    "",
+    "name       becomes the policy group name in both engines.",
+    "surge      policy-path URL for the Surge group.",
+    "clash      url for the Clash proxy-provider.",
+    "prefix     external-policy-name-prefix in Surge, override.additional-prefix",
+    "           in Clash. Omit for no prefix.",
+    "key        Clash proxy-provider key and cache filename.",
+    "           Default: the name lowercased with non-alphanumerics removed.",
+    "filter     regex kept against the node names as the provider serves them,",
+    "           before any prefix is applied. Useful when a feed carries entries",
+    "           that report quota instead of routing traffic.",
+    "interval   provider refresh, seconds. Default 3600.",
+    "downloadVia  policy used to fetch the subscription. Default DIRECT, so it",
+    "           does not depend on a working proxy to bootstrap.",
+    "testUrl    health-check URL. Default http://cp.cloudflare.com/generate_204.",
+    "surgeParams  extra k=v appended to the Surge policy group.",
+    "clashOverride  extra keys under the Clash provider's override:."
+  ],
+  "subscriptions": [
+    {
+      "name": "Provider One",
+      "surge": "https://example.com/YOUR_TOKEN/surge.conf",
+      "clash": "https://example.com/YOUR_TOKEN/clash.yml"
+    },
+    {
+      "name": "Provider Two",
+      "prefix": "[P2]",
+      "key": "providertwo",
+      "surge": "https://example.com/YOUR_OTHER_TOKEN/surge.conf",
+      "clash": "https://example.com/YOUR_OTHER_TOKEN/clash.yml",
+      "filter": "^(HK|JP|SG)",
+      "interval": 3600,
+      "downloadVia": "DIRECT",
+      "testUrl": "http://cp.cloudflare.com/generate_204",
+      "surgeParams": { "policy-regex-filter": "IPLC|Relay" },
+      "clashOverride": { "udp": true, "skip-cert-verify": false }
+    }
+  ],
+
+  "$comment_vars": "Plain {{TOKEN}} substitutions available to every template.",
+  "vars": {
+    "SURGE_API_KEY": "YOUR_SURGE_API_KEY",
+    "CLASH_SECRET": "YOUR_CLASH_CONTROLLER_SECRET"
+  },
+
+  "$comment_forbid": [
+    "Assertions run against the tracked templates, not the rendered output.",
+    "These are what make the repository safe to publish: if a real value is ever",
+    "typed into a *.base.* file instead of a loop field or token, `pnpm gen`",
+    "and `pnpm gen:check` fail before anything is written.",
+    "forbidAllow lists literals that are exempt, for addresses that legitimately",
+    "appear in a template such as loopback and public resolvers."
+  ],
+  "forbid": [
+    "psk\\s*[=:]\\s*(?!\\{\\{|YOUR_)\\S+",
+    "password\\s*[=:]\\s*(?!\\{\\{|YOUR_)\\S+",
+    "uuid\\s*[=:]\\s*(?!\\{\\{|YOUR_)\\S+",
+    "^\\s*secret:\\s*(?!\"?\\{\\{|\"?YOUR_)\\S+",
+    "external-controller-access\\s*=\\s*(?!\\{\\{|YOUR_)\\S+",
+    "policy-path\\s*=\\s*(?!\\{\\{|https://example\\.com/)\\S+",
+    "url:\\s*\"?https://(?!\\{\\{|example\\.com/|fastly\\.jsdelivr\\.net|dns\\.alidns\\.com|doh\\.pub)\\S+",
+    "\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b(?!/)"
+  ],
+  "forbidAllow": [
+    "127.0.0.1", "0.0.0.0", "198.18.0.1",
+    "223.5.5.5", "223.6.6.6", "119.29.29.29",
+    "8.8.8.8", "8.8.4.4", "1.1.1.1", "1.0.0.1"
+  ]
+}
