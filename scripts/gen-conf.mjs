@@ -194,12 +194,52 @@ const subs = (cfg.subscriptions ?? []).map((s, i) => {
   const key = s.key ?? (name.toLowerCase().replace(/[^a-z0-9]+/g, '') || `sub${i}`)
   const prefix = s.prefix ?? ''
 
+  // `filter` is the Clash provider's field; Surge's equivalent is
+  // policy-regex-filter. Emit both from the one option so it is not silently
+  // Clash-only, unless surgeParams already sets it explicitly.
+  //
+  // The two are not interchangeable verbatim. mihomo searches the name as the
+  // feed sends it, so "^x1\.0" works there. Surge documents only "use the
+  // policies that the regex matches the policy name" — in practice an anchored
+  // pattern matches nothing, whether because it wants a full match or because
+  // external-policy-name-prefix is applied first. So an auto-derived Surge
+  // filter drops the anchors and wraps the pattern, which is correct under
+  // either reading. Set surgeFilter to bypass this and control it exactly.
+  const deriveSurge = (p) => `.*${p.replace(/^\^/, '').replace(/\$$/, '')}.*`
+  const surgeFilter = s.surgeFilter ?? (s.filter ? deriveSurge(s.filter) : undefined)
+  if (surgeFilter && surgeFilter.includes(',')) {
+    fail(`subscription "${name}": policy-regex-filter cannot contain a comma`, [
+      'Surge separates policy parameters by comma. Use surgeFilter to give the',
+      'Surge side a comma-free equivalent of the Clash filter.',
+    ])
+  }
+  const hasExplicit = Object.prototype.hasOwnProperty.call(s.surgeParams ?? {}, 'policy-regex-filter')
+
+  // The subscription's own group stays unfiltered, so the entries a feed uses
+  // to report balance and expiry remain visible there. Filtering happens in a
+  // derived group that the routing groups include instead — it reuses the
+  // already-loaded policies, so there is no second download.
+  const nodesName = `${name}${cfg.nodesSuffix ?? ' Nodes'}`
+  const hasFilter = Boolean(surgeFilter) && !hasExplicit
+
   const surgeGroup = [
     `${name} = select`,
     `policy-path=${need(s, 'surge', `subscription "${name}"`)}`,
+    ...(hasExplicit ? [] : []),
     ...(prefix ? [`external-policy-name-prefix=${prefix}`] : []),
     ...surgeParams(s.surgeParams),
   ].join(', ')
+
+  // Emitted raw: Surge's format is not JSON, so escaping the backslashes would
+  // make the regex look for a literal one.
+  const surgeNodesGroup = hasFilter
+    ? [`${nodesName} = select`, `include-other-group="${name}"`,
+       `policy-regex-filter=${surgeFilter}`, 'hidden=true'].join(', ')
+    : ''
+
+  // What the routing groups should pull from: the filtered variant when there
+  // is one, otherwise the subscription group itself.
+  const includeName = hasFilter ? nodesName : name
 
   const clashProvider = [
     `  ${key}:`,
@@ -208,7 +248,6 @@ const subs = (cfg.subscriptions ?? []).map((s, i) => {
     `    path: ./providers/${key}.yaml`,
     `    interval: ${s.interval ?? 3600}`,
     `    proxy: ${s.downloadVia ?? 'DIRECT'}`,
-    ...(s.filter ? [`    filter: ${JSON.stringify(s.filter)}`] : []),
     ...(prefix || s.clashOverride
       ? [
           `    override:`,
@@ -226,7 +265,8 @@ const subs = (cfg.subscriptions ?? []).map((s, i) => {
 
   const clashGroup = [`  - name: "${name}"`, `    type: select`, `    use: [${key}]`].join('\n')
 
-  return { ...s, name, key, prefix, surgeGroup, clashProvider, clashGroup }
+  return { ...s, name, key, prefix, surgeGroup, surgeNodesGroup, includeName,
+           clashProvider, clashGroup }
 })
 
 if (!vps.length && !subs.length) fail(`${cfgName} declares no vps and no subscriptions`)
@@ -242,8 +282,17 @@ const computed = {
   'vps.allNames': list([...vps.map((v) => q(v.name)), ...vps.map((v) => q(v.relayName))]),
   'subscriptions.names': list(subs.map((s) => q(s.name))),
   'subscriptions.include': subs.length
-    ? `include-other-group="${subs.map((s) => s.name).join(',')}"`
+    ? `include-other-group="${subs.map((s) => s.includeName).join(',')}"`
     : '',
+  // Clash has no include-other-group, so the routing groups filter their own
+  // use: list instead. One filter covers every provider in the group.
+  'subscriptions.clashFilter': (() => {
+    const fs = subs.map((s) => s.filter).filter(Boolean)
+    if (!fs.length) return ''
+    if (fs.length < subs.length) return ''  // mixed: filtering would drop the unfiltered feed
+    const uniq = [...new Set(fs)]
+    return `\n    filter: ${JSON.stringify(uniq.length === 1 ? uniq[0] : uniq.map((f) => `(?:${f})`).join('|'))}`
+  })(),
   'subscriptions.use': `[${subs.map((s) => s.key).join(', ')}]`,
   relayGroup,
   ...Object.fromEntries(Object.entries(cfg.vars ?? {}).map(([k, v]) => [k, String(v)])),

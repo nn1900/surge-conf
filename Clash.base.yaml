@@ -113,7 +113,7 @@ proxy-groups:
   - name: "Proxy"
     type: select
     proxies: ["Auto - UrlTest", {{vps.names}}]
-    use: {{subscriptions.use}}
+    use: {{subscriptions.use}}{{subscriptions.clashFilter}}
 
 {{#subscriptions}}
 {{clashGroup}}
@@ -123,11 +123,11 @@ proxy-groups:
   # state, so changing the browsing node does not move the chains' entry hop.
   - name: "{{relayGroup}}"
     type: select
-    use: {{subscriptions.use}}
+    use: {{subscriptions.use}}{{subscriptions.clashFilter}}
 
   - name: "Auto - UrlTest"
     type: url-test
-    use: {{subscriptions.use}}
+    use: {{subscriptions.use}}{{subscriptions.clashFilter}}
     url: http://cp.cloudflare.com/generate_204
     interval: 3600
     tolerance: 100
@@ -136,7 +136,7 @@ proxy-groups:
   - name: "AI Suite"
     type: select
     proxies: [{{vps.allNames}}, "DIRECT", "REJECT"]
-    use: {{subscriptions.use}}
+    use: {{subscriptions.use}}{{subscriptions.clashFilter}}
 
   - name: "Netflix"
     type: select
@@ -241,7 +241,7 @@ proxy-groups:
   - name: "Others"
     type: select
     proxies: ["Proxy", "DIRECT"]
-    use: {{subscriptions.use}}
+    use: {{subscriptions.use}}{{subscriptions.clashFilter}}
 
 rule-providers:
   LAN:
