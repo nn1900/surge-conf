@@ -194,19 +194,28 @@ const subs = (cfg.subscriptions ?? []).map((s, i) => {
   const key = s.key ?? (name.toLowerCase().replace(/[^a-z0-9]+/g, '') || `sub${i}`)
   const prefix = s.prefix ?? ''
 
-  // `filter` is the Clash provider's field; Surge's equivalent is
-  // policy-regex-filter. Emit both from the one option so it is not silently
-  // Clash-only, unless surgeParams already sets it explicitly.
+  // `filter` selects which of a feed's nodes to keep. Both engines apply it
+  // against the name they hold at that moment, and in both cases the prefix is
+  // already on it:
   //
-  // The two are not interchangeable verbatim. mihomo searches the name as the
-  // feed sends it, so "^x1\.0" works there. Surge documents only "use the
-  // policies that the regex matches the policy name" — in practice an anchored
-  // pattern matches nothing, whether because it wants a full match or because
-  // external-policy-name-prefix is applied first. So an auto-derived Surge
-  // filter drops the anchors and wraps the pattern, which is correct under
-  // either reading. Set surgeFilter to bypass this and control it exactly.
-  const deriveSurge = (p) => `.*${p.replace(/^\^/, '').replace(/\$$/, '')}.*`
-  const surgeFilter = s.surgeFilter ?? (s.filter ? deriveSurge(s.filter) : undefined)
+  //   Surge   policy-regex-filter, after external-policy-name-prefix
+  //   mihomo  a group's filter:, against p.Name() — the provider's
+  //           override.additional-prefix has already renamed it
+  //
+  // Only mihomo's *provider*-level filter sees the raw name, and that is not
+  // where it is emitted any more. So a pattern anchored to the raw name, like
+  // "^x1\.0", selects nothing once a prefix is set. Loosening it — dropping the
+  // anchors and wrapping in .* — matches with or without a prefix, and works
+  // whether the engine searches or requires a full match. surgeFilter and
+  // clashFilter bypass this when a feed needs something exact.
+  const loosen = (p) => `.*${p.replace(/^\^/, '').replace(/\$$/, '')}.*`
+  const surgeFilter = s.surgeFilter ?? (s.filter ? loosen(s.filter) : undefined)
+  const clashFilter = s.clashFilter ?? (s.filter ? loosen(s.filter) : undefined)
+  if (clashFilter && clashFilter.includes('`')) {
+    fail(`subscription "${name}": clash filter cannot contain a backtick`, [
+      'mihomo splits a group filter on backticks to allow several patterns.',
+    ])
+  }
   if (surgeFilter && surgeFilter.includes(',')) {
     fail(`subscription "${name}": policy-regex-filter cannot contain a comma`, [
       'Surge separates policy parameters by comma. Use surgeFilter to give the',
@@ -265,8 +274,8 @@ const subs = (cfg.subscriptions ?? []).map((s, i) => {
 
   const clashGroup = [`  - name: "${name}"`, `    type: select`, `    use: [${key}]`].join('\n')
 
-  return { ...s, name, key, prefix, surgeGroup, surgeNodesGroup, includeName,
-           clashProvider, clashGroup }
+  return { ...s, name, key, prefix, clashFilter, surgeGroup, surgeNodesGroup,
+           includeName, clashProvider, clashGroup }
 })
 
 if (!vps.length && !subs.length) fail(`${cfgName} declares no vps and no subscriptions`)
@@ -287,7 +296,7 @@ const computed = {
   // Clash has no include-other-group, so the routing groups filter their own
   // use: list instead. One filter covers every provider in the group.
   'subscriptions.clashFilter': (() => {
-    const fs = subs.map((s) => s.filter).filter(Boolean)
+    const fs = subs.map((s) => s.clashFilter).filter(Boolean)
     if (!fs.length) return ''
     if (fs.length < subs.length) return ''  // mixed: filtering would drop the unfiltered feed
     const uniq = [...new Set(fs)]
