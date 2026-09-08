@@ -28,7 +28,7 @@
 // Adding a third VPS, a second subscription, or switching a node to another
 // protocol is an edit to conf-gen.json. Templates and this script do not change.
 //
-// Usage: node scripts/gen-conf.mjs [--config conf-gen.json] [--check]
+// Usage: node scripts/gen-conf.mjs [--ios|--macos] [--config conf-gen.json] [--check]
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, symlinkSync, lstatSync, unlinkSync, cpSync } from 'node:fs'
 import { dirname, join, resolve, relative } from 'node:path'
@@ -42,6 +42,8 @@ gen-conf — render the Surge and Clash profiles from templates + your providers
 
 Usage
   npm run gen                    render every *.base.* template
+  npm run gen:ios                render the iOS profile only
+  npm run gen:macos              render the macOS profile only
   npm run gen:check              verify templates are safe to publish, render nothing
   node scripts/gen-conf.mjs [options]
 
@@ -49,6 +51,9 @@ Options
   --surge           render the Surge profiles              (default)
   --clash           render the Clash profile
   --all             render both
+  --ios, --macos    render only that Surge platform, plus the shared includes
+                    it needs. Discovered from the Surge-<platform>.base.conf
+                    filenames, and implies --surge.
   --out <dir>       where to write them            (default: .conf)
   --standalone      copy Rules/ into the output instead of symlinking it, so
                     the directory works without this repo
@@ -60,6 +65,10 @@ Options
   renders only Clash. Combine them (--surge --clash) or use --all for both.
   Targets are taken from the template extension: .ini/.conf are Surge, .yaml/
   .yml are Clash. The safety check always covers every template regardless.
+
+  Platforms narrow the Surge target rather than replacing it. Shared.ini has no
+  platform in its name, so it renders with any platform you pick — the profiles
+  #!include it, and would be empty without it.
 
 `
 
@@ -77,15 +86,6 @@ if (ci !== -1 && !cfgName) {
   console.error(USAGE.trim())
   process.exit(1)
 }
-
-// Naming a target replaces the default rather than adding to it.
-const wantAll = argv.includes('--all')
-const asked = { surge: argv.includes('--surge'), clash: argv.includes('--clash') }
-const targets = wantAll
-  ? { surge: true, clash: true }
-  : asked.surge || asked.clash
-    ? asked
-    : { surge: true, clash: false }
 
 const targetOf = (file) => (/\.ya?ml$/.test(file) ? 'clash' : 'surge')
 
@@ -107,6 +107,42 @@ const templates = readdirSync(root)
   .filter((f) => /\.base\.(ini|ya?ml|conf)$/.test(f))
   .sort()
 if (!templates.length) fail('no *.base.* templates found')
+
+// Within Surge, "Surge-<platform>.base.conf" belongs to that platform and every
+// other Surge template is shared. Platforms are read off the filenames the same
+// way targets are read off the extensions, so adding Surge-Foo.base.conf gives
+// you --foo without editing this script.
+const platformOf = (file) => {
+  const m = /^Surge-([A-Za-z0-9]+)\.base\./.exec(file)
+  return m ? m[1].toLowerCase() : null
+}
+const platforms = [...new Set(templates.map(platformOf).filter(Boolean))].sort()
+const wantPlatforms = platforms.filter((p) => argv.includes(`--${p}`))
+
+// A typo'd platform would otherwise render every platform instead of the one
+// asked for, which is the mistake these flags exist to prevent.
+const known = new Set(['--all', '--surge', '--clash', '--standalone', '--check',
+                       '--out', '--config', '-h', '--help', ...platforms.map((p) => `--${p}`)])
+const unknown = argv.filter((a, i) => a.startsWith('-') && !known.has(a) && argv[i - 1] !== '--out' && argv[i - 1] !== '--config')
+if (unknown.length) {
+  fail(`unknown option${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}`, [
+    `platforms available: ${platforms.map((p) => `--${p}`).join(', ') || 'none'}`,
+    'run with --help for the full list',
+  ])
+}
+
+// Naming a target replaces the default rather than adding to it. Naming a
+// platform implies --surge, since platforms only exist within Surge.
+const wantAll = argv.includes('--all')
+const asked = {
+  surge: argv.includes('--surge') || wantPlatforms.length > 0,
+  clash: argv.includes('--clash'),
+}
+const targets = wantAll
+  ? { surge: true, clash: true }
+  : asked.surge || asked.clash
+    ? asked
+    : { surge: true, clash: false }
 
 const cfgPath = join(root, cfgName)
 const examplePath = join(root, 'conf-gen.example.json')
@@ -333,8 +369,15 @@ const expandLoops = (text) =>
     return items.map((item) => interpolate(body, item)).join('')
   })
 
-const selected = templates.filter((t) => targets[targetOf(t)])
-const skipped = templates.filter((t) => !targets[targetOf(t)])
+// A shared template (no platform in its name) renders whenever its engine is on;
+// Shared.ini is included by both Surge profiles, so --ios still needs it.
+const inTarget = (t) => {
+  if (!targets[targetOf(t)]) return false
+  const p = platformOf(t)
+  return !p || !wantPlatforms.length || wantPlatforms.includes(p)
+}
+const selected = templates.filter(inTarget)
+const skipped = templates.filter((t) => !inTarget(t))
 
 if (!selected.length) {
   fail('no templates match the requested target', [
@@ -386,7 +429,8 @@ if (existsSync(rulesSrc) && resolve(rulesDst) !== resolve(rulesSrc)) {
   }
 }
 
-const on = Object.entries(targets).filter(([, v]) => v).map(([k]) => k).join(' + ')
+const on = Object.entries(targets).filter(([, v]) => v).map(([k]) => k).join(' + ') +
+  (wantPlatforms.length ? ` (${wantPlatforms.join(', ')})` : '')
 const shown = relative(process.cwd(), outDir) || '.'
 console.log(
   `\n${vps.length} VPS (${vps.map((v) => v.type).join(', ') || 'none'}), ` +

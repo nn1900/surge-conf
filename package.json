@@ -7,6 +7,8 @@
     "sync": "./scripts/sync-icloud.sh",
     "sync:dry": "./scripts/sync-icloud.sh --dry-run --itemize-changes",
     "gen": "node scripts/gen-conf.mjs",
+    "gen:ios": "node scripts/gen-conf.mjs --ios",
+    "gen:macos": "node scripts/gen-conf.mjs --macos",
     "gen:check": "node scripts/gen-conf.mjs --check",
     "link:surge": "./scripts/link-surge.sh"
   }
