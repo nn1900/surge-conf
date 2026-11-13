@@ -16,7 +16,6 @@ allow-lan: false
 bind-address: 127.0.0.1
 mode: rule
 log-level: info
-ipv6: true
 unified-delay: true
 tcp-concurrent: true
 find-process-mode: strict
@@ -58,7 +57,6 @@ sniffer:
 
 dns:
   enable: true
-  ipv6: true
   listen: 0.0.0.0:1053
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
@@ -74,13 +72,13 @@ dns:
     - "+.xboxlive.com"
     - "+.pool.ntp.org"
   default-nameserver:
-    - 223.5.5.5
-    - 119.29.29.29
+    - 1.1.1.1
+    - 8.8.8.8
   nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://doh.pub/dns-query
+    - https://cloudflare-dns.com/dns-query
+    - https://dns.google/dns-query
   proxy-server-nameserver:
-    - https://dns.alidns.com/dns-query
+    - https://cloudflare-dns.com/dns-query
 
 # Transparent proxying. Off by default because it needs elevated privileges.
 tun:
@@ -135,7 +133,7 @@ proxy-groups:
 
   - name: "AI Suite"
     type: select
-    proxies: [{{vps.allNames}}, "DIRECT", "REJECT"]
+    proxies: [{{vps.allNames}}, "REJECT"]
     use: {{subscriptions.use}}{{subscriptions.clashFilter}}
 
   - name: "Netflix"
@@ -766,7 +764,8 @@ rule-providers:
     proxy: DIRECT
 
 rules:
-  - RULE-SET,LAN,DIRECT
+  # Resolve AI destinations at the selected remote proxy, before IP-based rules.
+  - RULE-SET,AI_Suite,AI Suite
   - RULE-SET,AdBlock,AdBlock
 
   - RULE-SET,Special,Special
@@ -832,8 +831,6 @@ rules:
 
   - RULE-SET,Microsoft,Microsoft
 
-  - RULE-SET,AI_Suite,AI Suite
-
   - RULE-SET,PayPal,PayPal
 
   - RULE-SET,Scholar,Scholar
@@ -855,6 +852,7 @@ rules:
   - RULE-SET,Proxy,Proxy
 
   - RULE-SET,Domestic,Domestic
+  - RULE-SET,LAN,DIRECT
   - RULE-SET,Domestic_IPs,Domestic
   - RULE-SET,ASN_China,Domestic
 
