@@ -85,6 +85,31 @@ Each VPS also yields a chained variant — `<name> - Relay`, routed through the
 Adding a third VPS or a second subscription is an edit to `conf-gen.json`;
 neither the templates nor the generator change.
 
+### Home exit through a hop (`macminitw`)
+
+An optional `macminitw` section in `conf-gen.json` describes a server at home
+that listens only on a tailnet address. The client can't dial it, so every
+node is chained (`underlying-proxy` / `dialer-proxy`) through a select group of
+your VPSes, which reach it over their own Tailscale. It renders:
+
+```ini
+Home Snell = snell, 100.x.y.z, 6160, psk=…, underlying-proxy="Via Home"
+Via Home   = select, "My VPS 1", "My VPS 2"        # pick the hop
+Home Exit  = select, "Home Snell", "Home SS", "Tailnet"   # pick the exit
+[Tailscale personal]                               # optional, Surge only
+```
+
+`Home Exit` is also offered in `Proxy`; nothing routes to it by rule. These
+nodes stay out of `vps[]` because those become directly usable nodes with a
+`- Relay` twin. Clash gets only nodes whose `engines` include `clash` (mihomo
+has no Snell v6 and no Tailscale policy). Without the section, every token
+renders empty. Field reference: `conf-gen.example.json`.
+
+Set `tailscale.dnsServer` unless the tailnet defines global nameservers in its
+DNS settings. Surge's Tailscale policy otherwise has no resolver, and every
+hostname through the exit node fails with "No available upstream DNS server",
+while bare IPs still work.
+
 `Rules/` is symlinked into the output rather than copied, because `RULE-SET`
 paths are relative to the profile. That keeps one copy on disk and always
 current, but it ties the output to this repo. `--standalone` copies instead,

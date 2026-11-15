@@ -52,6 +52,51 @@
     }
   ],
 
+  "$comment_macminitw": [
+    "Optional. A home exit that the client can't dial directly (it listens on a",
+    "tailnet address), so every node is chained through a select group of the",
+    "vps entries above, which reach it over their own Tailscale. Omit the",
+    "section and all of it renders empty.",
+    "",
+    "Required: via.name, via.hops (names from vps[], or DIRECT to dial the tailnet",
+    "          address straight from a client that is on the tailnet), group, and at least one",
+    "          node or a tailscale policy. Each node needs name, type, server, port.",
+    "Optional: node params / clashParams (as for vps), node engines",
+    "          (default [\"surge\", \"clash\"]; drop clash for protocols mihomo",
+    "          lacks, e.g. Snell v6), and tailscale (Surge only):",
+    "          name, section, exitNode (default none), autoAddMagicDnsRule",
+    "          (default true), dnsServer (list; needed when the tailnet has no",
+    "          global nameservers, or lookups through the exit node fail).",
+    "          It signs in interactively, so it holds no secret.",
+    "",
+    "Renders: each node with underlying-proxy / dialer-proxy = via.name; the",
+    "via.name group of hops; the group of nodes (+ tailscale policy) for",
+    "picking the exit by hand, also offered in Proxy."
+  ],
+  "macminitw": {
+    "via": { "name": "Via Home", "hops": ["My VPS 1", "My VPS 2"] },
+    "group": "Home Exit",
+    "nodes": [
+      {
+        "name": "Home Snell",
+        "type": "snell",
+        "server": "100.64.0.10",
+        "port": 6160,
+        "engines": ["surge"],
+        "params": { "psk": "YOUR_PSK_HERE", "version": 6, "reuse": true }
+      },
+      {
+        "name": "Home SS",
+        "type": "ss",
+        "server": "100.64.0.10",
+        "port": 6161,
+        "params": { "encrypt-method": "2022-blake3-aes-128-gcm", "password": "YOUR_KEY_HERE", "udp-relay": true },
+        "clashParams": { "cipher": "2022-blake3-aes-128-gcm", "udp": true }
+      }
+    ],
+    "tailscale": { "name": "Tailnet", "section": "personal", "exitNode": "home-mac", "autoAddMagicDnsRule": false, "dnsServer": ["1.1.1.1", "8.8.8.8"] }
+  },
+
   "$comment_subscriptions": [
     "Required: name, surge, clash.",
     "Optional: prefix, key, filter, surgeFilter, interval, downloadVia,",

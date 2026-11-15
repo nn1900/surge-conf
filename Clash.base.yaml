@@ -100,6 +100,10 @@ proxies:
 {{clashRelay}}
 
 {{/vps}}
+{{#macminitwClash}}
+{{clash}}
+
+{{/macminitwClash}}
 proxy-providers:
 {{#subscriptions}}
 {{clashProvider}}
@@ -110,7 +114,7 @@ proxy-groups:
   # group; use: is the mihomo equivalent, and can sit alongside proxies:.
   - name: "Proxy"
     type: select
-    proxies: ["Auto - UrlTest", {{vps.names}}]
+    proxies: ["Auto - UrlTest", {{vps.names}}{{macminitw.clashProxyMember}}]
     use: {{subscriptions.use}}{{subscriptions.clashFilter}}
 
 {{#subscriptions}}
@@ -123,6 +127,7 @@ proxy-groups:
     type: select
     use: {{subscriptions.use}}{{subscriptions.clashFilter}}
 
+{{macminitw.clashGroups}}
   - name: "Auto - UrlTest"
     type: url-test
     use: {{subscriptions.use}}{{subscriptions.clashFilter}}

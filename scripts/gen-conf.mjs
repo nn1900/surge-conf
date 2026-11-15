@@ -25,6 +25,10 @@
 //   {{subscriptions.include}}  include-other-group="Sub1,Sub2"
 //   {{subscriptions.use}}      [sub1, sub2]
 //
+// The optional macminitw section (a hop-only home exit) adds the loops
+// {{#macminitw}} / {{#macminitwClash}} and the macminitw.* tokens; all of them
+// render empty when conf-gen.json has no such section.
+//
 // Adding a third VPS, a second subscription, or switching a node to another
 // protocol is an edit to conf-gen.json. Templates and this script do not change.
 //
@@ -316,10 +320,97 @@ const subs = (cfg.subscriptions ?? []).map((s, i) => {
 
 if (!vps.length && !subs.length) fail(`${cfgName} declares no vps and no subscriptions`)
 
-// ------------------------------------------------------------------- context
+// ------------------------------------------------------- macminitw (optional)
+// A home exit reachable only through a hop: its nodes listen on a tailnet
+// address that the client can't dial itself, so each one is chained through a
+// select group of existing VPSes (underlying-proxy / dialer-proxy). The VPSes
+// reach it over their own Tailscale. An optional Surge Tailscale policy with
+// an exit node sits beside the nodes in the hand-picked exit group.
+//
+// Kept out of vps[] on purpose: those land in Proxy and AI Suite as directly
+// usable nodes and get a Relay twin, none of which fits a hop-only server.
+// Without a macminitw section every token below renders empty.
 
 const q = (s) => `"${s}"`
 const list = (a) => a.join(', ')
+
+// Surge's parameter values are comma-separated; quote names with spaces.
+const sv = (s) => (/[\s"]/.test(s) ? `"${s}"` : s)
+
+const mm = (() => {
+  const m = cfg.macminitw
+  if (!m) return null
+  const via = need(m.via ?? {}, 'name', 'macminitw.via')
+  const hops = m.via?.hops ?? []
+  if (!hops.length) fail('macminitw.via.hops is empty', ['List the vps names that may carry traffic to macminitw.'])
+  const vpsNames = new Set(vps.map((v) => v.name))
+  // DIRECT is allowed as a hop: dial the tailnet address straight, which works
+  // wherever the client itself is on the tailnet (e.g. the Tailscale app).
+  const unknownHops = hops.filter((h) => h !== 'DIRECT' && !vpsNames.has(h))
+  if (unknownHops.length) fail('macminitw.via.hops names no such vps', [...unknownHops, `vps: ${[...vpsNames].join(', ')}, or DIRECT`])
+  // Built-in policy names stay unquoted in Surge.
+  const hopRef = (h) => (h === 'DIRECT' ? h : q(h))
+  const group = need(m, 'group', 'macminitw')
+
+  const nodes = (m.nodes ?? []).map((n, i) => {
+    const name = need(n, 'name', `macminitw.nodes[${i}]`)
+    const type = need(n, 'type', `macminitw node "${name}"`)
+    const server = need(n, 'server', `macminitw node "${name}"`)
+    const port = need(n, 'port', `macminitw node "${name}"`)
+    const engines = n.engines ?? ['surge', 'clash']
+    const clashParams = { ...(n.params ?? {}), ...(n.clashParams ?? {}), 'dialer-proxy': via }
+    return {
+      ...n, name, engines,
+      surge: `${name} = ${[type, server, port, ...surgeParams(n.params), `underlying-proxy=${sv(via)}`].join(', ')}`,
+      clash: [
+        `  - name: "${name}"`,
+        `    type: ${type}`,
+        `    server: ${server}`,
+        `    port: ${port}`,
+        ...Object.entries(clashParams).map(([k, val]) => `    ${k}: ${yamlScalar(val)}`),
+      ].join('\n'),
+    }
+  })
+
+  const ts = m.tailscale
+  const tsName = ts ? need(ts, 'name', 'macminitw.tailscale') : null
+  const tsSection = ts ? need(ts, 'section', 'macminitw.tailscale') : null
+
+  const surgeNodes = nodes.filter((n) => n.engines.includes('surge'))
+  const clashNodes = nodes.filter((n) => n.engines.includes('clash'))
+  const surgeMembers = [...surgeNodes.map((n) => q(n.name)), ...(ts ? [q(tsName)] : [])]
+  if (!surgeMembers.length) fail(`macminitw group "${group}" would be empty`, ['Add a node or a tailscale policy.'])
+
+  return {
+    surgeNodes, clashNodes,
+    surgeTailnet: ts ? `${tsName} = tailscale, section-name=${tsSection}` : '',
+    surgeTailscaleSection: ts
+      ? [`[Tailscale ${tsSection}]`, 'interactive-login = true',
+         `exit-node = ${ts.exitNode ?? 'none'}`,
+         `auto-add-magic-dns-rule = ${ts.autoAddMagicDnsRule ?? true}`,
+         // Without it the policy uses the tailnet's DNS servers; a tailnet with
+         // none fails every lookup through the exit node ("No available
+         // upstream DNS server"). Queries are routed through the exit node.
+         ...(ts.dnsServer ? [`dns-server = ${[].concat(ts.dnsServer).join(', ')}`] : [])].join('\n')
+      : '',
+    surgeGroups: [
+      `${via} = select, ${list(hops.map(hopRef))}`,
+      `${group} = select, ${list(surgeMembers)}`,
+    ].join('\n'),
+    surgeProxyMember: `, ${q(group)}`,
+    // Clash: no Tailscale policy, and only the nodes that declare it.
+    clashGroups: clashNodes.length
+      ? [
+          `  - name: "${via}"`, `    type: select`, `    proxies: [${list(hops.map(q))}]`, '',
+          `  - name: "${group}"`, `    type: select`, `    proxies: [${list(clashNodes.map((n) => q(n.name)))}]`, '',
+        ].join('\n')
+      : '',
+    clashProxyMember: clashNodes.length ? `, ${q(group)}` : '',
+  }
+})()
+
+// ------------------------------------------------------------------- context
+
 
 const computed = {
   'vps.names': list(vps.map((v) => q(v.name))),
@@ -340,10 +431,21 @@ const computed = {
   })(),
   'subscriptions.use': `[${subs.map((s) => s.key).join(', ')}]`,
   relayGroup,
+  'macminitw.surgeTailnet': mm?.surgeTailnet ?? '',
+  'macminitw.surgeTailscaleSection': mm?.surgeTailscaleSection ?? '',
+  'macminitw.surgeGroups': mm?.surgeGroups ?? '',
+  'macminitw.surgeProxyMember': mm?.surgeProxyMember ?? '',
+  'macminitw.clashGroups': mm?.clashGroups ?? '',
+  'macminitw.clashProxyMember': mm?.clashProxyMember ?? '',
   ...Object.fromEntries(Object.entries(cfg.vars ?? {}).map(([k, v]) => [k, String(v)])),
 }
 
-const lists = { vps, subscriptions: subs }
+const lists = {
+  vps,
+  subscriptions: subs,
+  macminitw: mm?.surgeNodes ?? [],
+  macminitwClash: mm?.clashNodes ?? [],
+}
 
 // -------------------------------------------------------------------- render
 
