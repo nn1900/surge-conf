@@ -264,31 +264,33 @@ const subs = (cfg.subscriptions ?? []).map((s, i) => {
   }
   const hasExplicit = Object.prototype.hasOwnProperty.call(s.surgeParams ?? {}, 'policy-regex-filter')
 
-  // The subscription's own group stays unfiltered, so the entries a feed uses
-  // to report balance and expiry remain visible there. Filtering happens in a
-  // derived group that the routing groups include instead — it reuses the
+  // With a filter, the subscription's own group is the raw feed, kept
+  // unfiltered (and hidden) under "<name> All" so the entries a feed uses to
+  // report balance and expiry stay inspectable. The menu entry named <name>
+  // is the filtered group the routing groups point at; it reuses the
   // already-loaded policies, so there is no second download.
-  const nodesName = `${name}${cfg.nodesSuffix ?? ' Nodes'}`
   const hasFilter = Boolean(surgeFilter) && !hasExplicit
+  const rawName = hasFilter ? `${name}${cfg.rawSuffix ?? ' All'}` : name
 
   const surgeGroup = [
-    `${name} = select`,
+    `${rawName} = select`,
     `policy-path=${need(s, 'surge', `subscription "${name}"`)}`,
     ...(hasExplicit ? [] : []),
     ...(prefix ? [`external-policy-name-prefix=${prefix}`] : []),
     ...surgeParams(s.surgeParams),
+    // Hidden when a filtered group stands in for it in the menu.
+    ...(hasFilter ? ['hidden=true'] : []),
   ].join(', ')
 
   // Emitted raw: Surge's format is not JSON, so escaping the backslashes would
   // make the regex look for a literal one.
   const surgeNodesGroup = hasFilter
-    ? [`${nodesName} = select`, `include-other-group="${name}"`,
-       `policy-regex-filter=${surgeFilter}`, 'hidden=true'].join(', ')
+    ? [`${name} = select`, `include-other-group="${rawName}"`,
+       `policy-regex-filter=${surgeFilter}`].join(', ')
     : ''
 
-  // What the routing groups should pull from: the filtered variant when there
-  // is one, otherwise the subscription group itself.
-  const includeName = hasFilter ? nodesName : name
+  // What the routing groups point at: always the group named <name>.
+  const includeName = name
 
   const clashProvider = [
     `  ${key}:`,
@@ -312,7 +314,10 @@ const subs = (cfg.subscriptions ?? []).map((s, i) => {
     `      expected-status: 204`,
   ].join('\n')
 
-  const clashGroup = [`  - name: "${name}"`, `    type: select`, `    use: [${key}]`].join('\n')
+  // Named like the Surge group the routing groups point at, and filtered the
+  // same way, so both engines show one entry per subscription in each menu.
+  const clashGroup = [`  - name: "${includeName}"`, `    type: select`, `    use: [${key}]`,
+    ...(clashFilter ? [`    filter: ${JSON.stringify(clashFilter)}`] : [])].join('\n')
 
   return { ...s, name, key, prefix, clashFilter, surgeGroup, surgeNodesGroup,
            includeName, clashProvider, clashGroup }
@@ -397,7 +402,8 @@ const mm = (() => {
       `${via} = select, ${list(hops.map(hopRef))}`,
       `${group} = select, ${list(surgeMembers)}`,
     ].join('\n'),
-    surgeProxyMember: `, ${q(group)}`,
+    surgeMember: `, ${q(group)}`,
+    surgeMemberLead: `${q(group)}, `,
     // Clash: no Tailscale policy, and only the nodes that declare it.
     clashGroups: clashNodes.length
       ? [
@@ -405,7 +411,8 @@ const mm = (() => {
           `  - name: "${group}"`, `    type: select`, `    proxies: [${list(clashNodes.map((n) => q(n.name)))}]`, '',
         ].join('\n')
       : '',
-    clashProxyMember: clashNodes.length ? `, ${q(group)}` : '',
+    clashMember: clashNodes.length ? `, ${q(group)}` : '',
+    clashMemberLead: clashNodes.length ? `${q(group)}, ` : '',
   }
 })()
 
@@ -429,14 +436,18 @@ const computed = {
     const uniq = [...new Set(fs)]
     return `\n    filter: ${JSON.stringify(uniq.length === 1 ? uniq[0] : uniq.map((f) => `(?:${f})`).join('|'))}`
   })(),
+  // One entry per subscription (its group) instead of every node inline.
+  'subscriptions.groupsMember': subs.map((s) => `, ${q(s.includeName)}`).join(''),
   'subscriptions.use': `[${subs.map((s) => s.key).join(', ')}]`,
   relayGroup,
   'macminitw.surgeTailnet': mm?.surgeTailnet ?? '',
   'macminitw.surgeTailscaleSection': mm?.surgeTailscaleSection ?? '',
   'macminitw.surgeGroups': mm?.surgeGroups ?? '',
-  'macminitw.surgeProxyMember': mm?.surgeProxyMember ?? '',
+  'macminitw.surgeMember': mm?.surgeMember ?? '',
+  'macminitw.surgeMemberLead': mm?.surgeMemberLead ?? '',
   'macminitw.clashGroups': mm?.clashGroups ?? '',
-  'macminitw.clashProxyMember': mm?.clashProxyMember ?? '',
+  'macminitw.clashMember': mm?.clashMember ?? '',
+  'macminitw.clashMemberLead': mm?.clashMemberLead ?? '',
   ...Object.fromEntries(Object.entries(cfg.vars ?? {}).map(([k, v]) => [k, String(v)])),
 }
 

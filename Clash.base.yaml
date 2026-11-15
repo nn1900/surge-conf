@@ -114,7 +114,7 @@ proxy-groups:
   # group; use: is the mihomo equivalent, and can sit alongside proxies:.
   - name: "Proxy"
     type: select
-    proxies: ["Auto - UrlTest", {{vps.names}}{{macminitw.clashProxyMember}}]
+    proxies: ["Auto - UrlTest", {{vps.names}}{{macminitw.clashMember}}]
     use: {{subscriptions.use}}{{subscriptions.clashFilter}}
 
 {{#subscriptions}}
@@ -130,6 +130,7 @@ proxy-groups:
 {{macminitw.clashGroups}}
   - name: "Auto - UrlTest"
     type: url-test
+    hidden: true
     use: {{subscriptions.use}}{{subscriptions.clashFilter}}
     url: http://cp.cloudflare.com/generate_204
     interval: 3600
@@ -138,104 +139,29 @@ proxy-groups:
 
   - name: "AI Suite"
     type: select
-    proxies: [{{vps.allNames}}, "REJECT"]
-    use: {{subscriptions.use}}{{subscriptions.clashFilter}}
+    proxies: [{{vps.allNames}}{{macminitw.clashMember}}{{subscriptions.groupsMember}}, "REJECT"]
 
-  - name: "Netflix"
+  # Every routing group offers the connectivity providers after its usual
+  # default: VPSes, Taiwan Home, and each subscription as one group entry.
+  - name: "Streaming"
     type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Disney Plus"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "YouTube"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Max"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Spotify"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
+    proxies: ["Proxy", "DIRECT", {{vps.names}}{{macminitw.clashMember}}{{subscriptions.groupsMember}}]
 
   - name: "Asian TV"
     type: select
-    proxies: ["Proxy", "DIRECT"]
+    proxies: [{{macminitw.clashMemberLead}}"Proxy", "DIRECT", {{vps.names}}{{subscriptions.groupsMember}}]
 
-  - name: "Global TV"
+  - name: "Apple"
     type: select
-    proxies: ["Proxy", "DIRECT"]
+    proxies: ["DIRECT", "Proxy", {{vps.names}}{{macminitw.clashMember}}{{subscriptions.groupsMember}}]
 
-  - name: "CN Mainland TV"
+  - name: "Finance"
     type: select
-    proxies: ["DIRECT", "Proxy"]
-
-  - name: "Apple TV"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Crypto"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Discord"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Google FCM"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Microsoft"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "PayPal"
-    type: select
-    proxies: ["DIRECT", "Proxy"]
-
-  - name: "Scholar"
-    type: select
-    proxies: ["DIRECT", "Proxy"]
-
-  - name: "Speedtest"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Steam"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "TikTok"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "Apple Push"
-    type: select
-    proxies: ["DIRECT", "Proxy"]
-
-  - name: "Apple Services"
-    type: select
-    proxies: ["DIRECT", "Proxy"]
-
-  - name: "Telegram"
-    type: select
-    proxies: ["Proxy", "DIRECT"]
-
-  - name: "miHoYo"
-    type: select
-    proxies: ["DIRECT", "Proxy"]
-
-  - name: "Special"
-    type: select
-    proxies: ["DIRECT", "Proxy"]
+    proxies: ["DIRECT"{{macminitw.clashMember}}, "Proxy", {{vps.names}}{{subscriptions.groupsMember}}]
 
   - name: "Domestic"
     type: select
-    proxies: ["DIRECT", "Proxy"]
+    proxies: ["DIRECT", "Proxy", {{vps.names}}{{macminitw.clashMember}}{{subscriptions.groupsMember}}]
 
   - name: "AdBlock"
     type: select
@@ -243,8 +169,7 @@ proxy-groups:
 
   - name: "Others"
     type: select
-    proxies: ["Proxy", "DIRECT"]
-    use: {{subscriptions.use}}{{subscriptions.clashFilter}}
+    proxies: ["Proxy", "DIRECT", {{vps.names}}{{macminitw.clashMember}}{{subscriptions.groupsMember}}]
 
 rule-providers:
   LAN:
@@ -773,18 +698,18 @@ rules:
   - RULE-SET,AI_Suite,AI Suite
   - RULE-SET,AdBlock,AdBlock
 
-  - RULE-SET,Special,Special
+  - RULE-SET,Special,Apple
 
-  - RULE-SET,Media_Netflix,Netflix
+  - RULE-SET,Media_Netflix,Streaming
 
-  - RULE-SET,Media_Disney_Plus,Disney Plus
+  - RULE-SET,Media_Disney_Plus,Streaming
 
-  - RULE-SET,Media_YouTube,YouTube
-  - RULE-SET,Media_YouTube_Music,YouTube
+  - RULE-SET,Media_YouTube,Streaming
+  - RULE-SET,Media_YouTube_Music,Streaming
 
-  - RULE-SET,Media_Max,Max
+  - RULE-SET,Media_Max,Streaming
 
-  - RULE-SET,Media_Spotify,Spotify
+  - RULE-SET,Media_Spotify,Streaming
 
   - RULE-SET,Media_Abema_TV,Asian TV
   - RULE-SET,Media_Bahamut,Asian TV
@@ -802,57 +727,57 @@ rules:
   - RULE-SET,Media_Niconico,Asian TV
   - RULE-SET,Media_ViuTV,Asian TV
 
-  - RULE-SET,Media_ABC,Global TV
-  - RULE-SET,Media_Amazon,Global TV
-  - RULE-SET,Media_BBC_iPlayer,Global TV
-  - RULE-SET,Media_DAZN,Global TV
-  - RULE-SET,Media_Discovery_Plus,Global TV
-  - RULE-SET,Media_encoreTVB,Global TV
-  - RULE-SET,Media_F1_TV,Global TV
-  - RULE-SET,Media_Fox_Now,Global TV
-  - RULE-SET,Media_Hulu,Global TV
-  - RULE-SET,Media_Pandora,Global TV
-  - RULE-SET,Media_PBS,Global TV
-  - RULE-SET,Media_Pornhub,Global TV
-  - RULE-SET,Media_Soundcloud,Global TV
+  - RULE-SET,Media_ABC,Streaming
+  - RULE-SET,Media_Amazon,Streaming
+  - RULE-SET,Media_BBC_iPlayer,Streaming
+  - RULE-SET,Media_DAZN,Streaming
+  - RULE-SET,Media_Discovery_Plus,Streaming
+  - RULE-SET,Media_encoreTVB,Streaming
+  - RULE-SET,Media_F1_TV,Streaming
+  - RULE-SET,Media_Fox_Now,Streaming
+  - RULE-SET,Media_Hulu,Streaming
+  - RULE-SET,Media_Pandora,Streaming
+  - RULE-SET,Media_PBS,Streaming
+  - RULE-SET,Media_Pornhub,Streaming
+  - RULE-SET,Media_Soundcloud,Streaming
 
-  - RULE-SET,Media_Bilibili,CN Mainland TV
-  - RULE-SET,Media_IQIYI,CN Mainland TV
-  - RULE-SET,Media_Letv,CN Mainland TV
-  - RULE-SET,Media_Netease_Music,CN Mainland TV
-  - RULE-SET,Media_Tencent_Video,CN Mainland TV
-  - RULE-SET,Media_Youku,CN Mainland TV
-  - RULE-SET,Media_WeTV,CN Mainland TV
+  - RULE-SET,Media_Bilibili,Domestic
+  - RULE-SET,Media_IQIYI,Domestic
+  - RULE-SET,Media_Letv,Domestic
+  - RULE-SET,Media_Netease_Music,Domestic
+  - RULE-SET,Media_Tencent_Video,Domestic
+  - RULE-SET,Media_Youku,Domestic
+  - RULE-SET,Media_WeTV,Domestic
 
-  - RULE-SET,Media_Apple_Music,Apple TV
-  - RULE-SET,Media_Apple_News,Apple TV
-  - RULE-SET,Media_Apple_TV,Apple TV
+  - RULE-SET,Media_Apple_Music,Apple
+  - RULE-SET,Media_Apple_News,Apple
+  - RULE-SET,Media_Apple_TV,Streaming
 
-  - RULE-SET,Crypto,Crypto
+  - RULE-SET,Crypto,Finance
 
-  - RULE-SET,Discord,Discord
+  - RULE-SET,Discord,Proxy
 
-  - RULE-SET,Google_FCM,Google FCM
+  - RULE-SET,Google_FCM,Proxy
 
-  - RULE-SET,Microsoft,Microsoft
+  - RULE-SET,Microsoft,Domestic
 
-  - RULE-SET,PayPal,PayPal
+  - RULE-SET,PayPal,Finance
 
-  - RULE-SET,Scholar,Scholar
+  - RULE-SET,Scholar,Domestic
 
-  - RULE-SET,Speedtest,Speedtest
+  - RULE-SET,Speedtest,Proxy
 
-  - RULE-SET,Steam,Steam
+  - RULE-SET,Steam,Proxy
 
-  - RULE-SET,TikTok,TikTok
+  - RULE-SET,TikTok,Proxy
 
-  - RULE-SET,Apple_Push,Apple Push
+  - RULE-SET,Apple_Push,Apple
 
-  - RULE-SET,Apple,Apple Services
+  - RULE-SET,Apple,Apple
 
-  - RULE-SET,Telegram,Telegram
+  - RULE-SET,Telegram,Proxy
 
-  - RULE-SET,miHoYo,miHoYo
+  - RULE-SET,miHoYo,Domestic
 
   - RULE-SET,Proxy,Proxy
 
