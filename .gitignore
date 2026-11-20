@@ -6,3 +6,8 @@ conf-gen.json
 MITM.ini
 node_modules/
 .DS_Store
+
+# server/: the headless-server proxy setup has its own private config and output.
+server/conf.json
+server/.out/
+server/.cache/

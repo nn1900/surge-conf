@@ -1,0 +1,45 @@
+{
+  "$comment": [
+    "Copy to server/conf.json (git-ignored) and fill in hosts. Leave uuid,",
+    "privateKey, shortId and each client's secret empty: `npm run server:gen -- --init`",
+    "generates them. The Reality public key is derived, never stored.",
+    "",
+    "clients headless servers that run mihomo, each with its own name. ssh is a host or",
+    "        ~/.ssh/config alias. defaultExit is the Proxy group's default: an exit name or \"Auto\".",
+    "exits   VPSes that get a VLESS+Reality inbound (xray) and become mihomo's exits.",
+    "        server is the address the client dials; ssh is how deploy reaches it.",
+    "        serverName is the site Reality impersonates: it must serve TLS 1.3 and",
+    "        HTTP/2 from the VPS, and stay reachable from the client's network.",
+    "mihomo.asset is the release file name without the version and .gz, e.g.",
+    "        mihomo-linux-amd64-v3 (needs AVX2) or mihomo-linux-amd64-compatible."
+  ],
+  "mihomo": {
+    "version": "v1.19.33",
+    "asset": "mihomo-linux-amd64-v3"
+  },
+  "xray": {
+    "version": "v26.10.31"
+  },
+  "clients": [
+    {
+      "name": "server1",
+      "ssh": "my-server",
+      "port": 7890,
+      "controllerPort": 9090,
+      "defaultExit": "Auto",
+      "secret": ""
+    }
+  ],
+  "exits": [
+    {
+      "name": "VPS 1",
+      "ssh": "vps1",
+      "server": "203.0.113.10",
+      "port": 443,
+      "serverName": "www.apple.com",
+      "uuid": "",
+      "privateKey": "",
+      "shortId": ""
+    }
+  ]
+}

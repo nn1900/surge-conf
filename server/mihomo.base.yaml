@@ -1,0 +1,79 @@
+# mihomo on a headless server: a local proxy port only. No TUN, no DNS
+# takeover, nothing listens beyond loopback. A program opts in with
+#   http_proxy=http://127.0.0.1:{{client.port}} https_proxy=http://127.0.0.1:{{client.port}}
+# and everything else on the machine is untouched.
+#
+# Rendered by server/gen.mjs from server/conf.json. Edit this template, not
+# the output.
+
+mixed-port: {{client.port}}
+allow-lan: false
+bind-address: 127.0.0.1
+mode: rule
+log-level: info
+ipv6: false
+unified-delay: true
+tcp-concurrent: true
+
+external-controller: 127.0.0.1:{{client.controllerPort}}
+secret: "{{client.secret}}"
+
+# GEOIP,CN reads Country.mmdb from the home directory (-d), which deploy.mjs
+# fills. The server can't reach GitHub, so it must never try to update it.
+geodata-mode: false
+geo-auto-update: false
+
+profile:
+  store-selected: true
+
+proxies:
+{{#exits}}
+  - name: "{{name}}"
+    type: vless
+    server: {{server}}
+    port: {{port}}
+    uuid: "{{uuid}}"
+    network: tcp
+    udp: true
+    tls: true
+    flow: xtls-rprx-vision
+    servername: "{{serverName}}"
+    client-fingerprint: chrome
+    # Quoted: a hex short id or base64url key can otherwise parse as a number.
+    reality-opts:
+      # Current Xray rejects a REALITY ClientHello without the X25519MLKEM768
+      # key share ("REALITY authentication failed"); mihomo omits it by default.
+      support-x25519mlkem768: true
+      public-key: "{{publicKey}}"
+      short-id: "{{shortId}}"
+{{/exits}}
+
+proxy-groups:
+  - name: Proxy
+    type: select
+    # client.defaultExit comes first, so it is the default; Auto picks the fastest.
+    proxies: [{{proxyChoices}}]
+
+  - name: Auto
+    type: url-test
+    proxies: [{{exitNames}}]
+    url: http://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+
+rules:
+  # Loopback, private networks, and the CGNAT range (Tailscale and Alibaba
+  # Cloud's own metadata and DNS at 100.100.x.x) never leave the machine.
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+
+  # Domestic: package mirrors and Alibaba Cloud APIs are faster direct.
+  - DOMAIN-SUFFIX,cn,DIRECT
+  - DOMAIN-SUFFIX,aliyun.com,DIRECT
+  - DOMAIN-SUFFIX,aliyuncs.com,DIRECT
+  - GEOIP,CN,DIRECT
+
+  - MATCH,Proxy
